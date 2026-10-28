@@ -1,0 +1,29 @@
+#!/bin/sh
+
+APPDIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+HEROIC="$APPDIR/opt/heroic/heroic"
+
+# Quando o AppImage é executado com APPIMAGE_EXTRACT_AND_RUN=1,
+# alguns runtimes não propagam APPIMAGE para o aplicativo.
+# Recuperamos o caminho usando ARGV0.
+if [ -z "${APPIMAGE:-}" ] && [ -n "${ARGV0:-}" ]; then
+    case "$ARGV0" in
+        *.AppImage)
+            case "$ARGV0" in
+                /*)
+                    export APPIMAGE="$ARGV0"
+                    ;;
+                *)
+                    export APPIMAGE="$(CDPATH= cd -- "$(dirname -- "$ARGV0")" && pwd)/$(basename -- "$ARGV0")"
+                    ;;
+            esac
+            ;;
+    esac
+fi
+
+if [ "$1" = "--gamemode" ]; then
+    shift
+    exec "$HEROIC" --no-sandbox --fullscreen "$@"
+fi
+
+exec "$HEROIC" --no-sandbox "$@"

@@ -1,1 +1,10 @@
+# upstream
 pnpm-lock.yaml linguist-generated=true
+
+# fork: normaliza fim de linha e marca binarios
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.AppImage binary
+*.asar binary

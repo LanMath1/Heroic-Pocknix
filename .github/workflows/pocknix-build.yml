@@ -1,0 +1,89 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  appimage:
+    name: AppImage ARM64
+    # runner ARM64 nativo do GitHub (gratuito em repositório público)
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.3'
+
+      - name: pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@12.5.1 --activate
+          pnpm --version
+
+      - name: install
+        run: pnpm install --frozen-lockfile
+
+      # app-builder converte build/icon.icns em PNG com opj_decompress
+      - name: dependências do empacotamento
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libopenjp2-tools
+          opj_decompress -h 2>&1 | head -1 || true
+
+      - name: baixar binários auxiliares (legendary, gogdl, nile, comet)
+        run: pnpm download-helper-binaries
+
+      # legendary e gogdl são zipapps que rodam no Python do sistema (3.14 no
+      # Pocknix). O start method padrão virou forkserver e o download travava.
+      - name: corrigir zipapps para Python 3.14
+        run: |
+          python3 pocknix/scripts/patch-tools.py \
+            public/bin/arm64/linux/legendary \
+            public/bin/arm64/linux/gogdl
+          sha256sum public/bin/arm64/linux/{legendary,gogdl}
+
+      - name: build (electron-vite)
+        run: pnpm build
+
+      - name: package (electron-builder)
+        run: pnpm exec electron-builder --linux AppImage --arm64 --publish never
+
+      - name: verify
+        run: bash pocknix/scripts/verify.sh dist/*.AppImage
+
+      - name: exportar a série de patches
+        if: always()
+        run: bash pocknix/scripts/export-patches.sh
+
+      - name: sha256
+        run: sha256sum dist/*.AppImage | tee dist/SHA256SUMS.txt
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Heroic-Pocknix-AppImage
+          path: |
+            dist/*.AppImage
+            dist/SHA256SUMS.txt
+          retention-days: 14
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: patches
+          path: pocknix/patches/*.patch
+          if-no-files-found: ignore
+          retention-days: 30

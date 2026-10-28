@@ -1,0 +1,90 @@
+name: sync-upstream
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # diário, 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag do upstream (vazio = detectar a última release)'
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: rebase dos patches sobre a release nova
+    runs-on: ubuntu-24.04-arm
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: configurar git
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: descobrir tag do upstream
+        id: tag
+        run: |
+          TAG="${{ inputs.tag }}"
+          if [ -z "$TAG" ]; then
+            TAG="$(gh api repos/Heroic-Games-Launcher/HeroicGamesLauncher/releases/latest --jq .tag_name)"
+          fi
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "upstream: $TAG"
+
+      - name: rebase da série de patches
+        id: sync
+        run: |
+          set +e
+          bash pocknix/scripts/sync-upstream.sh '${{ steps.tag.outputs.tag }}' 2>&1 | tee sync.log
+          echo "code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          exit 0
+
+      - name: push da branch
+        if: steps.sync.outputs.code == '0' || steps.sync.outputs.code == '2'
+        run: |
+          git push -f origin "sync/${{ steps.tag.outputs.tag }}"
+
+      - name: abrir PR de validação
+        if: steps.sync.outputs.code == '0'
+        run: |
+          TAG='${{ steps.tag.outputs.tag }}'
+          BODY="$(cat <<EOF
+          Rebase automático dos patches do fork sobre o upstream \`$TAG\`.
+
+          **Nada é publicado por este workflow.** Antes do merge:
+          - [ ] build do PR gerou AppImage ARM64
+          - [ ] validação no Pocknix: Epic, GOG, Amazon
+          - [ ] atalhos da Steam abrem o jogo (não só o AppImage)
+          - [ ] artworks gerados nos atalhos novos
+          - [ ] Game Mode abre o Heroic
+          - [ ] sem aviso de atualização no boot
+
+          Se algum patch apareceu como obsoleto, ele deve ser removido neste PR.
+          EOF
+          )"
+          gh pr create --base main --head "sync/$TAG" \
+            --title "sync: upstream $TAG" --body "$BODY" || \
+          echo "PR já existe"
+
+      - name: PR em rascunho (conflito)
+        if: steps.sync.outputs.code == '2'
+        run: |
+          TAG='${{ steps.tag.outputs.tag }}'
+          gh pr create --draft --base main --head "sync/$TAG" \
+            --title "sync: upstream $TAG (conflito)" \
+            --body-file sync.log || echo "PR já existe"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sync-log
+          path: sync.log
+          retention-days: 30

@@ -1,0 +1,94 @@
+name: release
+
+on:
+  push:
+    tags:
+      - 'v*-pocknix.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: publicar AppImage ARM64
+    runs-on: ubuntu-24.04-arm
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.23.3'
+
+      - name: pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@12.5.1 --activate
+
+      - run: pnpm install --frozen-lockfile
+      # app-builder converte build/icon.icns em PNG com opj_decompress
+      - name: dependências do empacotamento
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq libopenjp2-tools
+      - run: pnpm download-helper-binaries
+      - name: corrigir zipapps para Python 3.14
+        run: |
+          python3 pocknix/scripts/patch-tools.py \
+            public/bin/arm64/linux/legendary \
+            public/bin/arm64/linux/gogdl
+      - run: pnpm build
+      - run: pnpm exec electron-builder --linux AppImage --arm64 --publish never
+
+      - name: verify
+        run: bash pocknix/scripts/verify.sh dist/*.AppImage
+
+      - name: nomear artefato
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          OUT="dist/Heroic-Pocknix-${TAG}-arm64.AppImage"
+          mv dist/*.AppImage "$OUT"
+          sha256sum "$OUT" | tee dist/SHA256SUMS.txt
+          echo "ASSET=$OUT" >> "$GITHUB_ENV"
+
+      - name: notas do release
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          {
+            echo "## Heroic Pocknix ${TAG}"
+            echo
+            echo "Fork não oficial do Heroic Games Launcher com correções para ARM64 / Pocknix."
+            echo
+            echo "### Instalação"
+            echo '```bash'
+            echo "mkdir -p /home/deck/Applications/Heroic"
+            echo "cp Heroic-Pocknix-${TAG}-arm64.AppImage /home/deck/Applications/Heroic/Heroic-Pocknix.AppImage"
+            echo "chmod +x /home/deck/Applications/Heroic/Heroic-Pocknix.AppImage"
+            echo '```'
+            echo
+            echo "Game Mode (atalho do launcher): \`APPIMAGE_EXTRACT_AND_RUN=1 %command% --gamemode\`"
+            echo
+            echo "### Integridade"
+            echo '```'
+            cat dist/SHA256SUMS.txt
+            echo '```'
+            echo
+            echo "### Dados preservados"
+            echo '```'
+            echo "/home/deck/Games/Heroic"
+            echo "/home/deck/.config/heroic"
+            echo '```'
+            echo
+            sed -n '/^## \[Não publicado\]/,/^## \[/p' CHANGELOG.md | sed '$d'
+          } > dist/RELEASE_NOTES.md
+
+      - name: criar release
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          gh release create "$TAG" \
+            "$ASSET" dist/SHA256SUMS.txt \
+            --title "Heroic Pocknix $TAG" \
+            --notes-file dist/RELEASE_NOTES.md
