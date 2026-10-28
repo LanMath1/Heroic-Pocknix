@@ -337,7 +337,12 @@ async function buildShortcutEntryConfig(gameInfo: GameInfo): Promise<{
     exe = `"flatpak"`
     startDir = `"${userHome}"`
   } else if (!isWindows && isAppImage) {
-    exe = `"${process.env.APPIMAGE}"`
+    // No Pocknix o AppImage e lancado a partir de um atalho da Steam. Apontar
+    // o Target direto para o AppImage faz o atalho fechar antes do jogo subir,
+    // porque o runtime do AppImage reexecuta o processo e o Steam perde o
+    // rastro do PID. Usar /usr/bin/env permite passar variaveis de ambiente
+    // antes do caminho do AppImage e mantem o processo filho rastreavel.
+    exe = `"/usr/bin/env"`
     startDir = `"${dirname(process.env.APPIMAGE!)}"`
   } else if (isWindows && process.env.PORTABLE_EXECUTABLE_FILE) {
     exe = `"${process.env.PORTABLE_EXECUTABLE_FILE}"`
@@ -345,6 +350,14 @@ async function buildShortcutEntryConfig(gameInfo: GameInfo): Promise<{
   }
 
   const args = []
+  if (!isWindows && isAppImage) {
+    // Precede o caminho do AppImage: o /usr/bin/env interpreta NAME=value.
+    args.push('PATH=/usr/local/sbin:/usr/local/bin:/usr/bin:/bin')
+    args.push('FUSERMOUNT_PROG=/usr/bin/fusermount')
+    // sem FUSE (ou sem permissao de mount) o AppImage se auto-extrai
+    args.push('APPIMAGE_EXTRACT_AND_RUN=1')
+    args.push(`"${process.env.APPIMAGE}"`)
+  }
   args.push('--no-gui')
   if (!isWindows) {
     args.push('--no-sandbox')
