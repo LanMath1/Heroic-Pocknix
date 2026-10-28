@@ -338,7 +338,9 @@ class GlobalConfigV0 extends GlobalConfig {
       // em cada jogo novo.
       addSteamShortcuts: true,
       preferSystemLibs: false,
-      checkForUpdatesOnStartup: !isFlatpak,
+      // Pocknix: o updater do upstream nao conhece este fork e so gera aviso
+      // inutil no boot. Atualizacao aqui e por release manual.
+      checkForUpdatesOnStartup: false,
       autoUpdateGames: false,
       customWinePaths: [],
       defaultInstallPath: heroicInstallPath,
