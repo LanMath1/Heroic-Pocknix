@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=Heroic Games Launcher - Pocknix
+Exec=AppRun %U
+Terminal=false
+Type=Application
+Icon=com.heroicgameslauncher.hgl
+StartupWMClass=heroic
+Comment=Heroic Games Launcher ARM64 corrigido para Pocknix
+Categories=Game;
+MimeType=x-scheme-handler/heroic;
