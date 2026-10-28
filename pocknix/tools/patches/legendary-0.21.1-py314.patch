@@ -1,0 +1,50 @@
+--- a/legendary/cli.py
++++ b/legendary/cli.py
+@@ -12,7 +12,7 @@
+ from collections import defaultdict, namedtuple
+ from logging.handlers import QueueListener
+ from multiprocessing import Queue as MPQueue
+-from multiprocessing import freeze_support
++from multiprocessing import freeze_support, set_start_method
+ from platform import platform
+ from sys import exit, stdout
+ from sys import platform as sys_platform
+@@ -2717,6 +2717,7 @@
+ 
+ 
+ def main():
++    set_start_method("fork", force=True)
+     # Set output encoding to UTF-8 if not outputting to a terminal
+     if not stdout.isatty():
+         stdout.reconfigure(encoding='utf-8')
+--- a/legendary/downloader/mp/manager.py
++++ b/legendary/downloader/mp/manager.py
+@@ -655,7 +655,7 @@
+                     q.join_thread()
+ 
+     def run_real(self):
+-        self.shared_memory = SharedMemory(create=True, size=self.max_shared_memory)
++        self.shared_memory = SharedMemory(create=True, size=self.max_shared_memory, track=False)
+         self.log.debug(f'Created shared memory of size: {self.shared_memory.size / 1024 / 1024:.02f} MiB')
+ 
+         # create the shared memory segments and add them to their respective pools
+--- a/legendary/downloader/mp/workers.py
++++ b/legendary/downloader/mp/workers.py
+@@ -49,7 +49,7 @@
+             'User-Agent': 'EpicGamesLauncher/11.0.1-14907503+++Portal+Release-Live Windows/10.0.19041.1.256.64bit'
+         })
+         self.max_retries = max_retries
+-        self.shm = SharedMemory(name=shm)
++        self.shm = SharedMemory(name=shm, track=False)
+         self.log_level = logging.getLogger().level
+         self.logging_queue = logging_queue
+         self.dl_timeout = float(dl_timeout) if dl_timeout else 10.0
+@@ -159,7 +159,7 @@
+         self.o_q = out_queue
+         self.base_path = base_path
+         self.cache_path = cache_path or os.path.join(base_path, '.cache')
+-        self.shm = SharedMemory(name=shm)
++        self.shm = SharedMemory(name=shm, track=False)
+         self.log_level = logging.getLogger().level
+         self.logging_queue = logging_queue
+         self.case_insensitive = case_insensitive

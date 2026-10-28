@@ -1,3 +1,24 @@
+# ---- fork Heroic Pocknix -------------------------------------------------
+# artefatos: ficam em Releases, nunca no historico
+*.AppImage
+*.AppImage.zsync
+*.asar
+reference-artifacts/
+
+# build
+out/
+.AppDir/
+squashfs-root/
+*.squashfs
+
+# local
+Thumbs.db
+_scratch/
+
+# serie de patches: gerada por pocknix/scripts/export-patches.sh, nao versionada
+pocknix/patches/*.patch
+
+# ---- upstream (Heroic) ---------------------------------------------------
 # See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
 
 # dependencies
@@ -37,3 +58,7 @@ flatpak-build
 .env
 
 playwright-report
+
+# python (pocknix/scripts/patch-tools.py)
+__pycache__/
+*.pyc

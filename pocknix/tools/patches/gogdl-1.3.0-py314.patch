@@ -1,0 +1,48 @@
+--- a/gogdl/cli.py
++++ b/gogdl/cli.py
+@@ -1,5 +1,6 @@
+ #!/usr/bin/env python3
+ from multiprocessing import freeze_support
++from multiprocessing import set_start_method
+ import gogdl.args as args
+ from gogdl.dl.managers import manager
+ from gogdl.dl.managers import dependencies
+@@ -24,6 +25,7 @@
+     print(json.dumps(data))
+ 
+ def main():
++    set_start_method("fork", force=True)
+     arguments, unknown_args = args.init_parser()
+     level = logging.INFO
+     if '-d' in unknown_args or '--debug' in unknown_args:
+--- a/gogdl/dl/managers/task_executor.py
++++ b/gogdl/dl/managers/task_executor.py
+@@ -448,7 +448,7 @@
+ 
+         
+     def run(self):
+-        self.shared_memory = SharedMemory(create=True, size=1024*1024*1024)
++        self.shared_memory = SharedMemory(create=True, size=1024*1024*1024, track=False)
+         self.logger.debug(f"Created shared memory {self.shared_memory.size / 1024 / 1024:.02f} MiB")
+ 
+         chunk_size = self.biggest_chunk 
+--- a/gogdl/dl/workers/task_executor.py
++++ b/gogdl/dl/workers/task_executor.py
+@@ -84,7 +84,7 @@
+ 
+ class Download(Process):
+     def __init__(self, shared_memory, download_queue, results_queue, speed_queue, shared_secure_links):
+-        self.shared_memory = SharedMemory(name=shared_memory)
++        self.shared_memory = SharedMemory(name=shared_memory, track=False)
+         self.download_queue: Queue = download_queue
+         self.results_queue: Queue = results_queue
+         self.speed_queue: Queue = speed_queue
+@@ -252,7 +252,7 @@
+ 
+ class Writer(Process):
+     def __init__(self, shared_memory, writer_queue, results_queue, speed_queue, cache):
+-        self.shared_memory = SharedMemory(name=shared_memory)
++        self.shared_memory = SharedMemory(name=shared_memory, track=False)
+         self.cache = cache
+         self.writer_queue: Queue = writer_queue
+         self.results_queue: Queue = results_queue
