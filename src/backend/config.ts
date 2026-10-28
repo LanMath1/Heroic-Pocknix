@@ -333,7 +333,10 @@ class GlobalConfigV0 extends GlobalConfig {
       autoInstallDxvk: isLinux || isMac,
       autoInstallVkd3d: isLinux,
       autoInstallDxvkNvapi: isLinux,
-      addSteamShortcuts: false,
+      // Pocknix: atalhos na Steam com artwork sao o unico jeito pratico de
+      // abrir os jogos pelo Game Mode; ligar por padrao evita configurar isso
+      // em cada jogo novo.
+      addSteamShortcuts: true,
       preferSystemLibs: false,
       checkForUpdatesOnStartup: !isFlatpak,
       autoUpdateGames: false,
