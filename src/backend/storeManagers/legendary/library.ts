@@ -210,6 +210,13 @@ export default class LegendaryLibraryManager implements LibraryManager {
     }
     // We have the game, but info wasn't loaded yet
     if (!library.has(appName) || forceReload) {
+      if (forceReload) {
+        // `installedGames` is only filled by `refreshInstalled()`. Without this
+        // reload, a `save_path` written to `installed.json` by
+        // `legendary sync-saves` would be read from the stale in-memory map and
+        // look empty to the caller.
+        this.refreshInstalled()
+      }
       this.loadFile(appName)
     }
     return library.get(appName)
