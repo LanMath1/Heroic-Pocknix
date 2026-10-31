@@ -96,8 +96,73 @@ import type LogWriter from './logger/log_writer'
 import { isEnabled } from './storeManagers/legendary/eos_overlay/eos_overlay'
 import { Game } from 'common/types/game_manager'
 import { getKnownFixesFor } from './known_fixes/utils'
+import { getDefaultSavePath } from './save_sync'
+import { GOGCloudSavesLocation } from 'common/types/gog'
+import { GameConfig } from './game_config'
 
 let powerDisplayId: number | null
+
+/**
+ * Resolve as pastas de save quando o sync automatico esta ligado e o jogo ainda
+ * nao tem o caminho definido.
+ *
+ * A deteccao sempre existiu, mas so era disparada pela tela de Settings do jogo
+ * (frontend), o que obrigava a abrir cada jogo uma vez antes de qualquer sync.
+ * Fazendo isso no launch, o sync automatico passa a funcionar em todos os jogos,
+ * inclusive os abertos pelo atalho da Steam.
+ */
+async function resolveSavesLocations(
+  appName: string,
+  runner: Runner,
+  savesPath: string,
+  gogSaves: GOGCloudSavesLocation[]
+): Promise<{ savesPath: string; gogSaves: GOGCloudSavesLocation[] }> {
+  if (runner !== 'legendary' && runner !== 'gog') {
+    return { savesPath, gogSaves }
+  }
+
+  const isMissing = runner === 'legendary' ? !savesPath : !gogSaves.length
+  if (!isMissing) {
+    return { savesPath, gogSaves }
+  }
+
+  logInfo(
+    `Save path not set for ${appName}, detecting it before syncing`,
+    LogPrefix.Backend
+  )
+
+  try {
+    const detected = await getDefaultSavePath(appName, runner, gogSaves)
+
+    if (typeof detected === 'string' && detected.length) {
+      GameConfig.get(appName).setSetting('savesPath', detected)
+      logInfo(
+        ['Detected save path for', `${appName}:`, detected],
+        LogPrefix.Backend
+      )
+      return { savesPath: detected, gogSaves }
+    }
+
+    if (Array.isArray(detected)) {
+      const locations = detected.filter((location) => location.location.length)
+      if (locations.length) {
+        GameConfig.get(appName).setSetting('gogSaves', locations)
+        logInfo(
+          ['Detected save locations for', `${appName}:`, locations.length],
+          LogPrefix.Backend
+        )
+        return { savesPath, gogSaves: locations }
+      }
+    }
+  } catch (error) {
+    logError(
+      ['Failed to detect save path for', `${appName}:`, error],
+      LogPrefix.Backend
+    )
+  }
+
+  return { savesPath, gogSaves }
+}
 
 const launchEventCallback: (args: LaunchParams) => StatusPromise = async ({
   appName,
@@ -125,7 +190,7 @@ const launchEventCallback: (args: LaunchParams) => StatusPromise = async ({
   }
 
   const gameSettings = await game.getSettings()
-  const { autoSyncSaves, savesPath, gogSaves = [] } = gameSettings
+  let { autoSyncSaves, savesPath, gogSaves = [] } = gameSettings
 
   if (!launchArguments && gameSettings.lastUsedLaunchOption) {
     launchArguments = gameSettings.lastUsedLaunchOption
@@ -144,6 +209,17 @@ const launchEventCallback: (args: LaunchParams) => StatusPromise = async ({
   logInfo(`Launching ${title} (${appName})`, LogPrefix.Backend)
 
   if (autoSyncSaves && isOnline()) {
+    if (gameInfo.cloud_save_enabled) {
+      const resolved = await resolveSavesLocations(
+        appName,
+        runner,
+        savesPath,
+        gogSaves
+      )
+      savesPath = resolved.savesPath
+      gogSaves = resolved.gogSaves
+    }
+
     sendGameStatusUpdate({
       appName,
       runner,
