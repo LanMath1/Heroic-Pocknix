@@ -3,6 +3,7 @@ import LanguageSelector from 'frontend/components/UI/LanguageSelector'
 import { ThemeSelector } from 'frontend/components/UI/ThemeSelector'
 import {
   AutoUpdateGames,
+  AutoSyncSaves,
   CheckUpdatesOnStartup,
   DefaultInstallPath,
   DefaultSteamPath,
@@ -62,6 +63,8 @@ export default function GeneralSettings() {
       <Shortcuts />
 
       <PlaytimeSync />
+
+      <AutoSyncSaves />
 
       <DiscordRPC />
 
